@@ -10,7 +10,7 @@ The image size is limited in the dynamic reconfigure cfg file, and we need a lar
 
 ## Quickstart
 
-1. Install version [2.0.1.1 of IDS peak](https://drive.google.com/file/d/1IYRx8QsdwaQE9NwvieD9ui3SMuHqahQ9/view?usp=sharing)
+1. Install version [2.0.1.1 of IDS peak](ids_peak/ids-peak-linux-x86-2.0.1.1-64.deb)
 1. Clone to catkin workspace, build, and run `roslaunch peak_cam peak_cam_node.launch `
 
 ## Detailed How-to
