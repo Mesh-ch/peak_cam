@@ -4,7 +4,16 @@ A Linux [ROS C++ Node](https://wiki.ros.org/peak_cam) that wraps the driver API 
 
 Supports the set_camera_info service used by the ROS [camera_calibration](http://wiki.ros.org/camera_calibration) package.
 
-## How to run
+### Why the Fork?
+
+The image size is limited in the dynamic reconfigure cfg file, and we need a larger image size (4000 x 3000).
+
+## Quickstart
+
+1. Install version [2.0.1.1 of IDS peak](https://drive.google.com/file/d/1IYRx8QsdwaQE9NwvieD9ui3SMuHqahQ9/view?usp=sharing)
+1. Clone to catkin workspace, build, and run `roslaunch peak_cam peak_cam_node.launch `
+
+## Detailed How-to
 
 ### Before running the code
 
