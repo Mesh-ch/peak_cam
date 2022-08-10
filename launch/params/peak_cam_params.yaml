@@ -16,21 +16,23 @@ frame_name: peak_camera
 
 # choose which device to enter by entering its serial number here
 # if you dont know it, run this node once and all serial nodes should be printed out
-selectedDevice: "0000000000"
+# selectedDevice: "0000000000"
+selectedDevice: "4103929441"
 
 # configure your desired image size
 # needs to be divisble by 8 and smaller than your imager size (Max Width, Max Height)
-ImageHeight: 320
-ImageWidth: 1088
+ImageHeight: 2750
+ImageWidth: 3024
 
 # Pixelformat
 # In IDS Implemented: ["Mono8", "Mono10", "Mono12", "Mono10p", "Mono12p", "BayerRG8", "BayerRG10", "BayerRG12", "BayerRG10p", "BayerRG12p", "RGB8", "RGB10p32", "BGR8", "BGR10p32"]
 # Possible: ["Mono8", "RGB8", "BGR8"] as string! 
-PixelFormat: "RGB8"
+PixelFormat: "Mono8"
 
 # DeviceLinkThroughputLimit
 # limits the maximum bandwidth of data sent from a GigE camera and thus helps to avoid interference
 # WATCH OUT when DeviceLinkThroughputLimit is too low there might be some latency and buffer overflows
+# DeviceLinkThroughputLimit: 125000000
 DeviceLinkThroughputLimit: 125000000
 
 # ExposureTime in μs
@@ -59,7 +61,7 @@ TriggerDivider: 1
 
 # AcquisitionFrameRate in Hz
 # WATCH OUT when AcquisitionFrameRate is too high there might be some latency. Check "rostopic hz /cameratopic"
-AcquisitionFrameRate: 1
+AcquisitionFrameRate: 5
 
 # Gamma
 # Range [0.3, ..., 3.0]
