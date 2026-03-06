@@ -36,6 +36,7 @@
 #include "peak_cam/peak_cam_node.hpp"
 #include <algorithm>
 #include <cstdint>
+#include <stdexcept>
 
 namespace peak_cam
 {
@@ -483,11 +484,15 @@ void PeakCamNode::setDeviceParameters()
   } else if (m_peakParams.PixelFormat == "RGB8") {
     m_pixelFormat = peak::ipl::PixelFormatName::RGB8;
     m_image_encoding = sensor_msgs::image_encodings::RGB8;
-    m_bytesPerPixel = 1;
+    m_bytesPerPixel = 3;
   } else if (m_peakParams.PixelFormat == "BGR8") {
     m_pixelFormat = peak::ipl::PixelFormatName::BGR8;
     m_image_encoding = sensor_msgs::image_encodings::BGR8;
-    m_bytesPerPixel = 1;
+    m_bytesPerPixel = 3;
+  } else {
+    throw std::runtime_error(
+      "[PeakCamNode]: Unsupported PixelFormat parameter '" + m_peakParams.PixelFormat +
+      "'. Supported values in this node are Mono8, RGB8, BGR8.");
   }
 }
 
@@ -505,22 +510,100 @@ void PeakCamNode::acquisitionLoop()
       m_cameraInfo.reset(new sensor_msgs::msg::CameraInfo(ci));
       m_cameraInfo->header = *m_header;
 
-      const auto imageBufferSize = m_peakParams.ImageWidth * m_peakParams.ImageHeight * m_bytesPerPixel;
       // buffer processing start
-      auto image = peak::BufferTo<peak::ipl::Image>(buffer).ConvertTo(m_pixelFormat);
+      auto inputImage = peak::BufferTo<peak::ipl::Image>(buffer);
+      auto image = inputImage;
+      auto publishEncoding = m_image_encoding;
+      auto publishBytesPerPixel = m_bytesPerPixel;
+      const auto inputPixelFormat = inputImage.PixelFormat();
+      const auto inputPixelFormatName = inputPixelFormat.PixelFormatName();
+
+      if (inputPixelFormatName != m_pixelFormat)
+      {
+        peak::ipl::ImageConverter imageConverter;
+        const auto supportedOutputFormats =
+          imageConverter.SupportedOutputPixelFormatNames(inputPixelFormat);
+
+        const auto supportsFormat =
+          [&](peak::ipl::PixelFormatName outputFormat)
+          {
+            return std::find(
+              supportedOutputFormats.begin(), supportedOutputFormats.end(), outputFormat) !=
+                   supportedOutputFormats.end();
+          };
+
+        const auto convertIfSupported =
+          [&](peak::ipl::PixelFormatName outputFormat, const std::string & outputEncoding, uint8_t bytesPerPixel)
+          {
+            if (!supportsFormat(outputFormat))
+            {
+              return false;
+            }
+            image = inputImage.ConvertTo(outputFormat);
+            publishEncoding = outputEncoding;
+            publishBytesPerPixel = bytesPerPixel;
+            return true;
+          };
+
+        if (!convertIfSupported(m_pixelFormat, m_image_encoding, m_bytesPerPixel))
+        {
+          std::string supportedFormatsText;
+          for (size_t i = 0; i < supportedOutputFormats.size(); ++i)
+          {
+            if (i > 0)
+            {
+              supportedFormatsText += ", ";
+            }
+            supportedFormatsText += peak::ipl::ToString(supportedOutputFormats[i]);
+          }
+
+          RCLCPP_WARN_STREAM_ONCE(
+            this->get_logger(),
+            "[PeakCamNode]: Requested conversion from " << peak::ipl::ToString(inputPixelFormatName) <<
+            " to " << peak::ipl::ToString(m_pixelFormat) <<
+            " is not supported. Supported outputs are: [" << supportedFormatsText <<
+            "]. Trying fallback formats.");
+
+          if (!convertIfSupported(
+              peak::ipl::PixelFormatName::BGR8,
+              sensor_msgs::image_encodings::BGR8,
+              3) &&
+            !convertIfSupported(
+              peak::ipl::PixelFormatName::RGB8,
+              sensor_msgs::image_encodings::RGB8,
+              3) &&
+            !convertIfSupported(
+              peak::ipl::PixelFormatName::Mono8,
+              sensor_msgs::image_encodings::MONO8,
+              1))
+          {
+            throw std::runtime_error(
+              "[PeakCamNode]: No supported conversion path to publish image data.");
+          }
+        }
+      }
+
+      const auto imageBufferSize = image.Width() * image.Height() * publishBytesPerPixel;
       cv::Mat cvImage;
-      if (m_peakParams.PixelFormat == "Mono8")
+      if (publishEncoding == sensor_msgs::image_encodings::MONO8)
         cvImage = cv::Mat::zeros(image.Height(), image.Width(), CV_8UC1);
       else
         cvImage = cv::Mat::zeros(image.Height(), image.Width(), CV_8UC3);
       int sizeBuffer = static_cast<int>(image.ByteCount());
+      if (static_cast<size_t>(sizeBuffer) != imageBufferSize)
+      {
+        RCLCPP_WARN_STREAM_ONCE(
+          this->get_logger(),
+          "[PeakCamNode]: Byte count mismatch. expected=" << imageBufferSize <<
+          " actual=" << sizeBuffer << " for encoding " << publishEncoding);
+      }
       // Device buffer is being copied into cv_bridge format
       std::memcpy(cvImage.data, image.Data(), static_cast<size_t>(sizeBuffer));
       // cv_bridge Image is converted to sensor_msgs/Image to publish on ROS Topic
       RCLCPP_INFO_ONCE(this->get_logger(), "[PeakCamNode]: cv bridge image");
       m_cvImage.reset(new cv_bridge::CvImage());
       m_cvImage->header = *m_header;
-      m_cvImage->encoding = m_image_encoding;
+      m_cvImage->encoding = publishEncoding;
       m_cvImage->image = cvImage;
       m_pubImage->publish(*m_cvImage->toImageMsg());
       m_pubCameraInfo->publish(*m_cameraInfo);
@@ -532,6 +615,7 @@ void PeakCamNode::acquisitionLoop()
       RCLCPP_ERROR(this->get_logger(), "[PeakCamNode]: Acquisition loop stopped, device may be disconnected!");
       RCLCPP_ERROR(this->get_logger(), "[PeakCamNode]: No device reset available");
       RCLCPP_ERROR(this->get_logger(), "[PeakCamNode]: Restart peak cam node!");
+      m_acquisitionLoopRunning = false;
     }
   }
 }

@@ -22,8 +22,8 @@
 
     # configure your desired image size
     # needs to be divisible by 8 and smaller than your imager size (Max Width, Max Height)
-    ImageHeight: 2512
-    ImageWidth: 3392
+    ImageHeight: 3000
+    ImageWidth: 4000
 
     # If UseOffset is false, image will be centered depending on image height/width.
     # If UseOffset is true, OffsetWidth and OffsetHeight are used directly.
