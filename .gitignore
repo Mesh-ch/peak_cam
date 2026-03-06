@@ -13,3 +13,6 @@ srv_gen
 CMakeCache.txt
 cmake_install.cmake
 doxygen.cfg
+install/
+build/
+log/

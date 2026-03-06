@@ -7,7 +7,7 @@ import yaml
 
 
 def generate_launch_description():
-    parameters_file_path = Path(get_package_share_directory('peak_cam'), 'params', 'settings', 'front.yaml')
+    parameters_file_path = Path(get_package_share_directory('peak_cam'), 'params', 'settings', 'peak_cam_params.yaml')
     camera_info_path = Path(get_package_share_directory('peak_cam'), 'params', 'intrinsics', 'default_camera_info.yaml')
 
     with open(parameters_file_path, 'r') as f:

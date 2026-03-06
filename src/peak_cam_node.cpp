@@ -34,9 +34,51 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 #include "peak_cam/peak_cam_node.hpp"
+#include <algorithm>
+#include <cstdint>
 
 namespace peak_cam
 {
+namespace
+{
+int64_t setAlignedIntegerNodeValue(
+  const rclcpp::Logger & logger,
+  const std::string & nodeName,
+  const std::shared_ptr<peak::core::nodes::IntegerNode> & node,
+  int64_t requestedValue)
+{
+  const int64_t minValue = node->Minimum();
+  const int64_t maxValue = node->Maximum();
+  const int64_t increment = std::max<int64_t>(1, node->Increment());
+
+  int64_t clampedValue = std::clamp(requestedValue, minValue, maxValue);
+  const int64_t deltaFromMin = clampedValue - minValue;
+  int64_t alignedValue = minValue + (deltaFromMin / increment) * increment;
+
+  const int64_t upperCandidate = alignedValue + increment;
+  if (upperCandidate <= maxValue)
+  {
+    const int64_t lowerDistance = clampedValue - alignedValue;
+    const int64_t upperDistance = upperCandidate - clampedValue;
+    if (upperDistance < lowerDistance)
+    {
+      alignedValue = upperCandidate;
+    }
+  }
+
+  if (alignedValue != requestedValue)
+  {
+    RCLCPP_WARN_STREAM(
+      logger,
+      "[PeakCamNode]: '" << nodeName << "' requested=" << requestedValue <<
+      " adjusted to " << alignedValue << " (min=" << minValue <<
+      ", max=" << maxValue << ", inc=" << increment << ")");
+  }
+
+  node->SetValue(alignedValue);
+  return alignedValue;
+}
+} // namespace
 
 PeakCamNode::PeakCamNode(const rclcpp::NodeOptions & options)
 : rclcpp::Node("peak_cam_node", options)
@@ -92,112 +134,116 @@ PeakCamNode::~PeakCamNode()
 void PeakCamNode::getParams()
 {
   try {
-    m_frameId = declare_parameter("frame_id").get<std::string>();
+    m_frameId = this->declare_parameter<std::string>("frame_id", "peak_cam");
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The frame_id provided was invalid");
     throw ex;
   }
   
   try {
-    m_imageTopic = declare_parameter("image_topic").get<std::string>();
+    m_imageTopic = this->declare_parameter<std::string>("image_topic", "image_raw");
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The image_topic provided was invalid");
     throw ex;
   }
 
   try {
-    m_cameraInfoUrl = declare_parameter("camera_info_url").get<std::string>();
+    m_cameraInfoUrl = this->declare_parameter<std::string>("camera_info_url", "");
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The camera_info_url provided was invalid");
     throw ex;
   }
 
   try {
-    m_peakParams.ExposureTime = declare_parameter("ExposureTime").get<int>();
+    m_peakParams.ExposureTime = this->declare_parameter<int>("ExposureTime", m_peakParams.ExposureTime);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The ExposureTime provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.AcquisitionFrameRate = declare_parameter("AcquisitionFrameRate").get<int>();
+    m_peakParams.AcquisitionFrameRate =
+      this->declare_parameter<int>("AcquisitionFrameRate", m_peakParams.AcquisitionFrameRate);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The AcquisitionFrameRate provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.ImageHeight = declare_parameter("ImageHeight").get<int>();
+    m_peakParams.ImageHeight = this->declare_parameter<int>("ImageHeight", m_peakParams.ImageHeight);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The ImageHeight provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.ImageWidth = declare_parameter("ImageWidth").get<int>();
+    m_peakParams.ImageWidth = this->declare_parameter<int>("ImageWidth", m_peakParams.ImageWidth);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The ImageWidth provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.UseOffset = declare_parameter("UseOffset").get<bool>();
+    m_peakParams.UseOffset = this->declare_parameter<bool>("UseOffset", m_peakParams.UseOffset);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The UseOffset provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.OffsetHeight = declare_parameter("OffsetHeight").get<int>();
+    m_peakParams.OffsetHeight = this->declare_parameter<int>("OffsetHeight", m_peakParams.OffsetHeight);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The OffsetHeight provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.OffsetWidth = declare_parameter("OffsetWidth").get<int>();
+    m_peakParams.OffsetWidth = this->declare_parameter<int>("OffsetWidth", m_peakParams.OffsetWidth);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The OffsetWidth provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.Gamma = declare_parameter("Gamma").get<double>();
+    m_peakParams.Gamma = this->declare_parameter<double>("Gamma", m_peakParams.Gamma);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The Gamma provided was invalid");
     throw ex;
   }
 
   try {
-    m_peakParams.selectedDevice = declare_parameter("selectedDevice").get<std::string>();
+    m_peakParams.selectedDevice =
+      this->declare_parameter<std::string>("selectedDevice", m_peakParams.selectedDevice);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The selectedDevice provided was invalid");
     throw ex;
   }
 
   try {
-    m_peakParams.ExposureAuto = declare_parameter("ExposureAuto").get<std::string>();
+    m_peakParams.ExposureAuto =
+      this->declare_parameter<std::string>("ExposureAuto", m_peakParams.ExposureAuto);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The ExposureAuto provided was invalid");
     throw ex;
   }
 
   try {
-    m_peakParams.GainAuto = declare_parameter("GainAuto").get<std::string>();
+    m_peakParams.GainAuto = this->declare_parameter<std::string>("GainAuto", m_peakParams.GainAuto);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The GainAuto provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.PixelFormat = declare_parameter("PixelFormat").get<std::string>();
+    m_peakParams.PixelFormat = this->declare_parameter<std::string>("PixelFormat", m_peakParams.PixelFormat);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The PixelFormat provided was invalid");
     throw ex;
   }
   
   try {
-    m_peakParams.GainSelector = declare_parameter("GainSelector").get<std::string>();
+    m_peakParams.GainSelector =
+      this->declare_parameter<std::string>("GainSelector", m_peakParams.GainSelector);
   } catch (rclcpp::ParameterTypeException & ex) {
     RCLCPP_ERROR(get_logger(), "The GainSelector provided was invalid");
     throw ex;
@@ -209,7 +255,7 @@ void PeakCamNode::getParams()
   RCLCPP_INFO(this->get_logger(), "  camera_info_url: %s", m_cameraInfoUrl.c_str());
   RCLCPP_INFO(this->get_logger(), "  ExposureTime: %i", m_peakParams.ExposureTime);
   RCLCPP_INFO(this->get_logger(), "  AcquisitionFrameRate: %i", m_peakParams.AcquisitionFrameRate);
-  RCLCPP_INFO(this->get_logger(), "  Gamma: %d", m_peakParams.Gamma);
+  RCLCPP_INFO(this->get_logger(), "  Gamma: %f", m_peakParams.Gamma);
   RCLCPP_INFO(this->get_logger(), "  ImageHeight: %i", m_peakParams.ImageHeight);
   RCLCPP_INFO(this->get_logger(), "  ImageWidth: %i", m_peakParams.ImageWidth);
   RCLCPP_INFO(this->get_logger(), "  OffsetHeight: %i", m_peakParams.OffsetHeight);
@@ -313,33 +359,44 @@ void PeakCamNode::openDevice()
         this->get_logger(), "[PeakCamNode]: EXCEPTION: " << e.what());
       RCLCPP_ERROR_STREAM_ONCE(
         this->get_logger(),
-        "[PeakCamNode]: Device at port " << m_peakParams.selectedDevice <<
-        " not connected or must run as root!");
+        "[PeakCamNode]: Could not initialize device '" << m_peakParams.selectedDevice <<
+        "'. Common causes are invalid camera parameters (ROI/offset increments), unavailable device, "
+        "or insufficient permissions (udev/root).");
     }
   }
 }
 
 void PeakCamNode::setDeviceParameters()
 {
-  int maxWidth, maxHeight = 0;
+  int64_t maxWidth, maxHeight = 0;
   maxWidth = m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("WidthMax")->Value();
   // RCLCPP_INFO_STREAM(this->get_logger(), "[PeakCamNode]: maxWidth '" << maxWidth << "'");
   maxHeight = m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("HeightMax")->Value();
   // RCLCPP_INFO_STREAM(this->get_logger(), "[PeakCamNode]: maxHeight '" << maxHeight << "'");
-  // Set Width, Height
-  m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("Width")->SetValue(m_peakParams.ImageWidth);
-  RCLCPP_INFO_STREAM(this->get_logger(), "[PeakCamNode]: ImageWidth is set to '" << m_peakParams.ImageWidth << "'");
-  m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("Height")->SetValue(m_peakParams.ImageHeight);
-  RCLCPP_INFO_STREAM(this->get_logger(), "[PeakCamNode]: ImageHeight is set to '" << m_peakParams.ImageHeight << "'");
+  const auto widthNode = m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("Width");
+  const auto heightNode = m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("Height");
+  const auto offsetXNode = m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("OffsetX");
+  const auto offsetYNode = m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("OffsetY");
+
+  const int64_t imageWidth = setAlignedIntegerNodeValue(
+    this->get_logger(), "Width", widthNode, m_peakParams.ImageWidth);
+  RCLCPP_INFO_STREAM(this->get_logger(), "[PeakCamNode]: ImageWidth is set to '" << imageWidth << "'");
+  const int64_t imageHeight = setAlignedIntegerNodeValue(
+    this->get_logger(), "Height", heightNode, m_peakParams.ImageHeight);
+  RCLCPP_INFO_STREAM(this->get_logger(), "[PeakCamNode]: ImageHeight is set to '" << imageHeight << "'");
   
+  int64_t targetOffsetX = 0;
+  int64_t targetOffsetY = 0;
   if (m_peakParams.UseOffset) {
-    m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("OffsetX")->SetValue(m_peakParams.OffsetWidth);
-    m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("OffsetY")->SetValue(m_peakParams.OffsetHeight);
+    targetOffsetX = m_peakParams.OffsetWidth;
+    targetOffsetY = m_peakParams.OffsetHeight;
   } else {
     // auto-center if UseOffset is set to False
-    m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("OffsetX")->SetValue((maxWidth - m_peakParams.ImageWidth) / 2);
-    m_nodeMapRemoteDevice->FindNode<peak::core::nodes::IntegerNode>("OffsetY")->SetValue((maxHeight - m_peakParams.ImageHeight) / 2);
+    targetOffsetX = (maxWidth - imageWidth) / 2;
+    targetOffsetY = (maxHeight - imageHeight) / 2;
   }
+  setAlignedIntegerNodeValue(this->get_logger(), "OffsetX", offsetXNode, targetOffsetX);
+  setAlignedIntegerNodeValue(this->get_logger(), "OffsetY", offsetYNode, targetOffsetY);
 
   //Set GainAuto Parameter
   m_nodeMapRemoteDevice->FindNode<peak::core::nodes::EnumerationNode>("GainAuto")->SetCurrentEntry(m_peakParams.GainAuto);
