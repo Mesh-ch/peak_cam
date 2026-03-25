@@ -38,9 +38,11 @@
 
 #include <iostream>
 #include <atomic>
+#include <thread>
 
 //ROS Headers
 #include "camera_info_manager/camera_info_manager.hpp"
+#include "image_transport/camera_publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
@@ -72,8 +74,7 @@ public:
   ~PeakCamNode();
 
 private:
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_pubImage;
-  rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr m_pubCameraInfo;
+  image_transport::CameraPublisher m_cameraPublisher;
 
   /// Camera Info Manager
   std::shared_ptr<camera_info_manager::CameraInfoManager> m_cameraInfoManager;
@@ -87,7 +88,7 @@ private:
   std_msgs::msg::Header::SharedPtr m_header;
   sensor_msgs::msg::CameraInfo::SharedPtr m_cameraInfo;
 
-  rclcpp::TimerBase::SharedPtr m_acquisitionTimer;
+  std::thread m_acquisitionThread;
 
   cv_bridge::CvImagePtr m_cvImage;
 
