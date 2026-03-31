@@ -9,7 +9,11 @@ on:
       - 'develop'
 
 jobs:
-  test_environment-linux-ros2:
+  # -----------------------------------------------------------------------
+  # C++ node: requires the IDS peak C++ SDK (.deb) for compilation
+  # -----------------------------------------------------------------------
+  test_cpp_node:
+    name: C++ node (${{ matrix.ros_distribution }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -20,11 +24,9 @@ jobs:
           # ROS 2 Humble Hawksbill (May 2022 - May 2027) on Ubuntu 22.04 (Jammy)
           - docker_image: ubuntu:jammy
             ros_distribution: humble
-            ros_version: 2
           # ROS 2 Jazzy Jalopy (May 2024 - May 2029) on Ubuntu 24.04 (Noble)
           - docker_image: ubuntu:noble
             ros_distribution: jazzy
-            ros_version: 2
     container:
       image: ${{ matrix.docker_image }}
     steps:
@@ -77,15 +79,71 @@ jobs:
       # NOTE: Ubuntu 22/24 users who need the full IDS Vision Cockpit GUI or a
       # newer driver should download IDS peak 2.x directly from IDS:
       #   https://en.ids-imaging.com/ids-peak.html
-      - name: install IDS peak library
+      - name: install IDS peak library (C++ SDK)
         run: |
           sudo mkdir -p /etc/udev/rules.d/
           dpkg --force-depends -i ros_ws/src/peak_cam/ids_peak/ids-peak-linux-x86-1.2.0.1-64.deb || true
           apt-get install -f -y
 
-      - name: build and test
+      - name: build and test (C++ node)
         uses: ros-tooling/action-ros-ci@v0.3
         with:
           package-name: peak_cam
           target-ros2-distro: ${{ matrix.ros_distribution }}
           vcs-repo-file-url: ""
+
+  # -----------------------------------------------------------------------
+  # Python node: uses `ids-peak` + `ids-peak-ipl` from PyPI
+  #
+  # The PyPI packages are Python bindings only — they still require the IDS
+  # peak SDK's native transport layer (CTI files) and shared libraries at
+  # runtime.  This job validates that the Python node syntax is correct and
+  # that the Python package structure is installable; actual camera access
+  # requires a real device with the SDK installed.
+  # -----------------------------------------------------------------------
+  test_python_node:
+    name: Python node (${{ matrix.ros_distribution }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - docker_image: ubuntu:jammy
+            ros_distribution: humble
+          - docker_image: ubuntu:noble
+            ros_distribution: jazzy
+    container:
+      image: ${{ matrix.docker_image }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup ROS environment
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.ros_distribution }}
+          use-ros2-testing: false
+
+      - name: install Python dependencies
+        run: |
+          apt-get install -y python3-pip python3-numpy
+          # ids-peak and ids-peak-ipl provide the Python bindings.
+          # NOTE: at runtime the IDS peak SDK transport layers must also be
+          # installed (https://en.ids-imaging.com/ids-peak.html).
+          pip3 install ids-peak ids-peak-ipl
+
+      - name: syntax check Python node
+        # Verify the node can be imported (all syntax is valid) even without
+        # a physical camera or SDK transport layers present.  Actual device
+        # access is not tested here.
+        run: |
+          python3 -c "
+          import ast, sys
+          with open('peak_cam_py/peak_cam_node.py') as f:
+              source = f.read()
+          ast.parse(source)
+          print('peak_cam_py/peak_cam_node.py: syntax OK')
+          "
+

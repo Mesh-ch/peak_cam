@@ -11,6 +11,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake_auto REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 ament_auto_find_build_dependencies()
 
 find_package(ids_peak REQUIRED)
@@ -71,5 +72,11 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/launch
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/params
   DESTINATION ${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}
 )
+
+# Install the Python node package so `ros2 run peak_cam peak_cam_py_node` works.
+# This node uses the `ids-peak` and `ids-peak-ipl` Python packages from PyPI
+# and does not require a C++ build.  Install the Python deps with:
+#   pip install ids-peak ids-peak-ipl
+ament_python_install_package(peak_cam_py)
 
 ament_auto_package()

@@ -1,13 +1,40 @@
 # peak_cam
 
-A Linux ROS 2 C++ node that wraps the IDS peak driver API for IDS vision cameras.
+A ROS 2 package for IDS peak cameras.  The package ships **two equivalent
+nodes** that can be used interchangeably:
+
+| Node | Executable | Language | SDK requirement |
+|---|---|---|---|
+| C++ node | `peak_cam_node` | C++ / ament_cmake | Full IDS peak C++ SDK (headers + shared libs) |
+| **Python node** | `peak_cam_py_node` | Python / rclpy | IDS peak native transport layers + `pip install ids-peak ids-peak-ipl` |
+
+The Python node (`peak_cam_py_node`) is the **recommended path for new
+installations** on Ubuntu 22/24 and WSL2: no C++ compilation is required.
 
 | Platform | ROS 2 distro | Status |
 |---|---|---|
 | Ubuntu 22.04 (Jammy) | Humble Hawksbill | Supported |
 | Ubuntu 24.04 (Noble) — incl. WSL2 | Jazzy Jalopy | Supported |
 
-## Prerequisites
+---
+
+## Python node (pip-based, no C++ compilation)
+
+### Why the PyPI package is not a full SDK replacement
+
+The [`ids-peak`](https://pypi.org/project/ids-peak/) and
+[`ids-peak-ipl`](https://pypi.org/project/ids-peak-ipl/) packages on PyPI
+provide **Python bindings only**.  As stated in their documentation:
+
+> *"ids_peak … requires at least the drivers and GenICam transport layers to
+> be installed, which are included in the IDS peak SDK."*
+
+This means:
+- ✅ You do **not** need the IDS peak C++ headers or CMake integration
+- ✅ You do **not** need a C++ compiler or build toolchain
+- ❌ You **still need** the IDS peak SDK installed for the native shared
+  libraries (`libids_peak.so`, `libids_peak_ipl.so`) and GenICam transport
+  layer (CTI) files
 
 ### 1. Install ROS 2
 
@@ -16,32 +43,102 @@ Follow the official instructions for your Ubuntu release:
 - **Ubuntu 22.04**: [ROS 2 Humble](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
 - **Ubuntu 24.04**: [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html)
 
-### 2. Install IDS peak
-
-The node requires the IDS peak SDK (≥ 2.x for Ubuntu 22/24) with the
-`ids_peak` and `ids_peak_ipl` CMake packages.
+### 2. Install the minimal IDS peak SDK
 
 Download the latest IDS peak installer for Linux from the IDS website:
 
 > <https://en.ids-imaging.com/ids-peak.html>
 
-Install the downloaded `.deb` package:
+Install the `.deb` package (the full SDK is needed for the shared libs and
+CTI transport layer files):
 
 ```bash
-sudo apt-get install -y libqt5core5a libqt5gui5 libqt5widgets5 libusb-1.0-0 libatomic1
+sudo apt-get install -y libusb-1.0-0 libatomic1
 sudo dpkg -i ids-peak-linux-x86-<version>-64.deb
 sudo apt-get install -f   # fix any remaining dependency issues
 ```
 
-After installation, verify that CMake can find the packages:
+> **Note (Ubuntu 22/24):** IDS peak 1.x was built for Ubuntu 18/20.
+> Use IDS peak **2.x or later** on Ubuntu 22 or 24.
+
+### 3. Install the Python bindings from PyPI
+
+```bash
+pip install ids-peak ids-peak-ipl
+```
+
+Also install the Python ROS 2 messaging dependencies:
+
+```bash
+sudo apt-get install -y python3-numpy ros-<distro>-camera-info-manager
+```
+
+### 4. Build
+
+```bash
+mkdir -p camera_ws/src
+cp -r peak_cam camera_ws/src/
+cd camera_ws
+source /opt/ros/<ros-distro>/setup.bash   # e.g. jazzy or humble
+colcon build --packages-select peak_cam
+source install/setup.bash
+```
+
+### 5. Run
+
+```bash
+ros2 run peak_cam peak_cam_py_node --ros-args --params-file \
+  install/peak_cam/share/peak_cam/params/settings/peak_cam_params.yaml
+```
+
+---
+
+## C++ node (requires full IDS peak C++ SDK)
+
+### Prerequisites
+
+#### 1. Install ROS 2
+
+See links above.
+
+#### 2. Install IDS peak C++ SDK
+
+The C++ node requires the IDS peak SDK (≥ 2.x for Ubuntu 22/24) with the
+`ids_peak` and `ids_peak_ipl` CMake packages.
+
+```bash
+sudo apt-get install -y libqt5core5a libqt5gui5 libqt5widgets5 libusb-1.0-0 libatomic1
+sudo dpkg -i ids-peak-linux-x86-<version>-64.deb
+sudo apt-get install -f
+```
+
+Verify CMake can find the packages:
 
 ```bash
 dpkg -L ids_peak | grep cmake
 ```
 
-> **Note (Ubuntu 22/24):** IDS peak 1.x was built for Ubuntu 18/20 and will
-> not install cleanly on Ubuntu 22 or 24.  Use IDS peak **2.x or later**
-> (available from the IDS download page above).
+> **Note (Ubuntu 22/24):** IDS peak 1.x will not install cleanly.
+> Use IDS peak **2.x or later**.
+
+### Build
+
+```bash
+mkdir -p camera_ws/src
+cp -r peak_cam camera_ws/src/
+cd camera_ws
+source /opt/ros/<ros-distro>/setup.bash
+colcon build --packages-select peak_cam
+source install/setup.bash
+```
+
+### Run
+
+```bash
+ros2 launch peak_cam peak_cam.launch.py
+```
+
+---
 
 ## WSL2 Setup (Ubuntu 22/24 on Windows)
 
@@ -72,7 +169,7 @@ Verify the camera is visible inside WSL2:
 lsusb   # should show the IDS camera
 ```
 
-Then proceed with the normal build and run steps below.
+Then proceed with the build and run steps above.
 
 > **Hint:** After attaching via usbipd the camera may only be accessible as
 > root.  If needed, run `sudo -s` before launching the node, or add a udev
@@ -87,28 +184,7 @@ Then proceed with the normal build and run steps below.
 > Replace `<vendor_id>` with the hex vendor ID shown by `lsusb` (IDS cameras
 > typically use `0x2474`).
 
-## Build
-
-1. Create a ROS 2 workspace:
-
-   ```bash
-   mkdir -p camera_ws/src
-   ```
-
-2. Put `peak_cam` into the workspace:
-
-   ```bash
-   cp -r peak_cam camera_ws/src/
-   ```
-
-3. Source your ROS 2 installation and build the package:
-
-   ```bash
-   cd camera_ws
-   source /opt/ros/<ros-distro>/setup.bash   # e.g. jazzy or humble
-   colcon build --packages-select peak_cam
-   source install/setup.bash
-   ```
+---
 
 ## Configuration
 
@@ -123,15 +199,7 @@ Common parameters:
 - `AcquisitionFrameRate`: requested frame rate
 - `ExposureTime`, `ExposureAuto`, `GainAuto`, `GainSelector`, `PixelFormat`
 
-## Run
-
-Launch the ROS 2 node with:
-
-```bash
-ros2 launch peak_cam peak_cam.launch.py
-```
-
-The launch file loads parameters from `params/settings/peak_cam_params.yaml`.
+Both nodes accept the same parameter file.
 
 If no valid camera calibration file is available, the node will still run and publish uncalibrated `CameraInfo`.
 
