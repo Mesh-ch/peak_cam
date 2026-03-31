@@ -8,7 +8,6 @@ import yaml
 
 def generate_launch_description():
     parameters_file_path = Path(get_package_share_directory('peak_cam'), 'params', 'settings', 'peak_cam_params.yaml')
-    camera_info_path = Path(get_package_share_directory('peak_cam'), 'params', 'intrinsics', 'default_camera_info.yaml')
 
     with open(parameters_file_path, 'r') as f:
         params = yaml.safe_load(f)['/**']['ros__parameters']
@@ -21,12 +20,10 @@ def generate_launch_description():
         executable='component_container',
         composable_node_descriptions=[
             ComposableNode(
-                package='peak_cam',
-                plugin='peak_cam::PeakCamNode',
+                package='camera_aravis2',
+                plugin='camera_aravis2::CameraAravisNode',
                 name='peak_cam',
-                parameters=[
-                    params,
-                    {'camera_info_url': 'file://' + str(camera_info_path)}])
+                parameters=[params])
         ],
         output='screen'
     )

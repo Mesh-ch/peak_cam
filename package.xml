@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>peak_cam</name>
-  <version>0.0.1</version>
-  <description>The peak cam package</description>
+  <version>0.1.0</version>
+  <description>ROS 2 launch and configuration package for IDS cameras using camera_aravis2</description>
 
   <maintainer email="sherif.nekkah@gmail.com">Sherif Nekkah</maintainer>
   <maintainer email="evanflynn.msu@gmail.com">Evan Flynn</maintainer>
@@ -10,16 +10,8 @@
   <license>BSD</license>
 
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
-  
-  <depend>rclcpp</depend>
-  <depend>rclcpp_components</depend>
-  <depend>camera_info_manager</depend>
-  <depend>cv_bridge</depend>
-  <depend>image_transport</depend>
-  <exec_depend>compressed_image_transport</exec_depend>
 
-  <depend>sensor_msgs</depend>
-  <depend>std_msgs</depend>
+  <exec_depend>camera_aravis2</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_lint_auto</test_depend>
