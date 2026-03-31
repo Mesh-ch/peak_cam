@@ -1,0 +1,91 @@
+name: ROS 2 CI
+
+on:
+  pull_request:
+    branches:
+      - 'ros2'
+      - 'main'
+      - 'master'
+      - 'develop'
+
+jobs:
+  test_environment-linux-ros2:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ROS 2 Humble Hawksbill (May 2022 - May 2027) on Ubuntu 22.04 (Jammy)
+          - docker_image: ubuntu:jammy
+            ros_distribution: humble
+            ros_version: 2
+          # ROS 2 Jazzy Jalopy (May 2024 - May 2029) on Ubuntu 24.04 (Noble)
+          - docker_image: ubuntu:noble
+            ros_distribution: jazzy
+            ros_version: 2
+    container:
+      image: ${{ matrix.docker_image }}
+    steps:
+      - name: setup directories
+        run: mkdir -p ros_ws/src
+
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          path: ros_ws/src/peak_cam
+
+      - name: setup ROS environment
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.ros_distribution }}
+          use-ros2-testing: false
+
+      # Enable universe repository for Qt5 packages on Ubuntu Noble (24.04)
+      - name: enable universe repository (Noble)
+        if: matrix.docker_image == 'ubuntu:noble'
+        run: |
+          apt-get install -y software-properties-common
+          add-apt-repository universe
+          apt-get update
+
+      # Install Qt5 and USB dependencies required by the IDS peak deb package.
+      # The QML module packages (qml-module-qtquick-*) that are absent on
+      # Ubuntu 22/24 are only needed for the IDS Vision Cockpit GUI tool, not
+      # for the camera library itself, so we install the ones that are available
+      # and use --force-depends when installing the deb.
+      - name: install IDS peak system dependencies
+        run: |
+          apt-get install -y \
+            libqt5core5a \
+            libqt5gui5 \
+            libqt5widgets5 \
+            libqt5quick5 \
+            qtbase5-dev \
+            qtdeclarative5-dev \
+            qml-module-qtquick-layouts \
+            libusb-1.0-0 \
+            libatomic1
+
+      # Install the bundled IDS peak 1.2.0.1 deb.  Several QML GUI modules it
+      # lists as dependencies were renamed / split in Ubuntu 22+, so we use
+      # --force-depends to skip the unsatisfied GUI-only deps.  The camera
+      # library headers, shared libraries and CMake config files are all
+      # installed correctly regardless.
+      #
+      # NOTE: Ubuntu 22/24 users who need the full IDS Vision Cockpit GUI or a
+      # newer driver should download IDS peak 2.x directly from IDS:
+      #   https://en.ids-imaging.com/ids-peak.html
+      - name: install IDS peak library
+        run: |
+          sudo mkdir -p /etc/udev/rules.d/
+          dpkg --force-depends -i ros_ws/src/peak_cam/ids_peak/ids-peak-linux-x86-1.2.0.1-64.deb || true
+          apt-get install -f -y
+
+      - name: build and test
+        uses: ros-tooling/action-ros-ci@v0.3
+        with:
+          package-name: peak_cam
+          target-ros2-distro: ${{ matrix.ros_distribution }}
+          vcs-repo-file-url: ""
