@@ -1,40 +1,63 @@
 # peak_cam
 
-A Linux [ROS C++ Node](https://wiki.ros.org/peak_cam) that wraps the driver API for IDS vision cameras using IDS peak software. Tested on Ubuntu 18.04 LTS.
+A Linux ROS 2 C++ node that wraps the IDS peak driver API for IDS vision cameras.
 
-## How to run
+## Prerequisites
 
-### Before running the code
+1. Install ROS 2.
+2. Install IDS peak and make sure the `ids_peak` and `ids_peak_ipl` CMake packages are available.
 
-1. install [ROS](http://wiki.ros.org/ROS/Installation)
-2. install [IDS peak](https://de.ids-imaging.com/download-vision-lin64.html)
+## Build
 
-### Running the code
+1. Create a ROS 2 workspace:
 
-0. Clone the repository to your Linux computer
+   ```bash
+   mkdir -p camera_ws/src
+   ```
 
-1. Generate a ROS workspace
+2. Put `peak_cam` into the workspace:
 
-    `$ mkdir -p camera_ws/src/` 
+   ```bash
+   cp -r peak_cam camera_ws/src/
+   ```
 
-1. Copy the peak_cam package into your ROS workspace and build it
-    
-    `$ cp -r peak_cam/ camera_ws/src/`
-    
-    `$ cd camera_ws/ && catkin_make && source devel/setup.bash`
+3. Source your ROS 2 installation and build the package:
 
-2. Set parameters such as ROS topic and acquisition rate under `launch/params/peak_cam_params.yaml`
+   ```bash
+   cd camera_ws
+   source /opt/ros/<ros-distro>/setup.bash
+   colcon build --packages-select peak_cam
+   source install/setup.bash
+   ```
 
-3. Plug the IDS vision camera and launch the node 
+## Configuration
 
-    `$ roslaunch peak_cam peak_cam_node.launch`
-    
-4. Stop the node with `Ctrl-C` (SIGINT) for controlled shutdown 
+Edit [`params/settings/peak_cam_params.yaml`](params/settings/peak_cam_params.yaml) before launching.
 
-For multiple cameras, create a `.launch` and a `.yaml` file for each camera.
+Common parameters:
 
-> Hint: Sometimes the cameras are only accesible as root. Try ` sudo -s` in your terminal and launch the node again.
+- `selectedDevice`: serial number of the IDS camera to open
+- `image_topic`: image topic suffix published by the node
+- `frame_id`: frame id used in the published messages
+- `ImageWidth` and `ImageHeight`: requested image size
+- `AcquisitionFrameRate`: requested frame rate
+- `ExposureTime`, `ExposureAuto`, `GainAuto`, `GainSelector`, `PixelFormat`
 
+## Run
+
+Launch the ROS 2 node with:
+
+```bash
+ros2 launch peak_cam peak_cam.launch.py
+```
+
+The launch file loads parameters from `params/settings/peak_cam_params.yaml`.
+
+If no valid camera calibration file is available, the node will still run and publish uncalibrated `CameraInfo`.
+
+For multiple cameras, create separate parameter files and launch descriptions for each camera instance.
+
+> Hint: Sometimes the cameras are only accessible as root. If needed, try `sudo -s` and launch the node again.
 
 Copyright (c) 2020, Sherif Nekkah
 
